@@ -30,3 +30,17 @@ def cut_30s(signals,labels,fs_dict,fs_label=700):
     cut_labels = labels[int(fs_label * 30):]  # taiem etichetele
 
     return cut_signals, cut_labels
+
+def map_labels_to_binary(labels):
+
+    """
+    2 -> stres,
+    1,3,4 -> non-stres, rest -> tranzitie
+    """
+
+    if labels == 2:
+        return 1  # stres
+    elif labels in [1, 3, 4]:
+        return 0  # non-stres
+    else:
+        return -1  # tranzitie

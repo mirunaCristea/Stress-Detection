@@ -51,3 +51,16 @@ def butter_filter(data, fs, low=None, high=None, order=4, btype='low'):
         return sosfilt(sos, x)
 
     return sosfiltfilt(sos, x, padlen=padlen)
+
+
+def filter_eda(eda, fs=4):
+    return butter_filter(eda, fs, high=1.0, btype='low')
+
+def filter_bvp(bvp, fs=64):
+    return butter_filter(bvp, fs, low=0.5, high=5.0, btype='band')
+
+def filter_temp(temp, fs=4):
+    return butter_filter(temp, fs, high=0.1, btype='low')
+
+def filter_acc(acc, fs=32):
+    return butter_filter(acc, fs, high=5.0, btype='low')
