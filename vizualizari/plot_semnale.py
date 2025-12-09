@@ -8,11 +8,15 @@ LABEL_COLORS = {
     3: 'orange',    # amusement
     4: 'blue',      # meditation
 }
+LABEL_NAMES = {
+    1: 'Baseline',
+    2: 'Stress',
+    3: 'Amusement',
+    4: 'Meditation',
+}
 
 
-
-
-def plot_raw_vs_filtered(raw, filtered, fs, title='', unit='', show_signal='both', labels=None, fs_labels=None, show_labels=True):
+def plot_raw_vs_filtered(raw, filtered, fs, title='', unit='', show_signal='both', labels=None, fs_labels=700, show_labels=True):
     """
     Plotează semnalele brute și filtrate pentru comparație.
 
@@ -35,8 +39,8 @@ def plot_raw_vs_filtered(raw, filtered, fs, title='', unit='', show_signal='both
         plt.plot(t,raw, label='Brut', color='black')
     elif show_signal == 'filtered':
         plt.plot(t,filtered, label='Filtrat', color='blue')
-    
-    if show_labels and labels is not None and fs_labels is not None:
+
+    if show_labels and labels is not None:
         factor = int(fs_labels // fs)  
         labels_down = labels[::factor] # subeșantionare etichete pentru a se potrivi cu frecvența semnalului
 
@@ -50,8 +54,9 @@ def plot_raw_vs_filtered(raw, filtered, fs, title='', unit='', show_signal='both
                 last_label = lbl
 
         # legendă colorată
-        patches = [mpatches.Patch(color=c, label=f'Etichetă {l}') 
-                   for l, c in LABEL_COLORS.items()]
+        
+        patches = [mpatches.Patch(color=c, alpha=0.25, label=LABEL_NAMES[l])
+               for l, c in LABEL_COLORS.items()]
         plt.legend(handles=patches + [
             plt.Line2D([], [], color='gray', label='Brut'),
             plt.Line2D([], [], color='blue', label='Filtrat')
