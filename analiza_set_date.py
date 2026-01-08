@@ -1,17 +1,26 @@
-from preprocesare._01_incarcare_taiere import load_data_wesad, cut_30s
+from preprocesare._01_incarcare_taiere import load_data_wesad, cut_30s, map_labels_to_binary_vector
+from preprocesare._02_filtrare_semnale import filter_eda, filter_bvp, filter_acc, filter_temp
+from feature_extraction._01_ferestre_feature import sliding_windows
+
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import pandas as pd
 
-DATASET_PATH = Path("data/WESAD")  # <- schimbă subiectul
-SUBJECTS = [f"S{i}" for i in range(2,18) if i != 12]  # S2..S17, fără S12
+DATASET_PATH = Path("data/WESAD")
+SUBJECTS = [f"S{i}" for i in range(2, 18) if i != 12]
 
-labels_all = []
-OUT_DIR = Path("figs_dataset")      # unde salvăm imaginile
+FS = {'EDA': 4, 'TEMP': 4, 'ACC': 32, 'BVP': 64}
+FS_LABEL = 700
+
+WINDOW_S = 30
+STEP_S = 5
+MAX_TRANSITION_RATIO = 0.25
+
+OUT_DIR = Path("figs_dataset")
 OUT_DIR.mkdir(exist_ok=True, parents=True)
 
-def savefig_nice(path, tight=True, dpi=180,close=True):
+def savefig_nice(path, tight=True, dpi=180, close=True):
     if tight:
         plt.tight_layout()
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -20,74 +29,78 @@ def savefig_nice(path, tight=True, dpi=180,close=True):
     if close:
         plt.close()
 
+y_all = []
+
 for subj in SUBJECTS:
-    pkl_path = DATASET_PATH/f"{subj}.pkl"
+    pkl_path = DATASET_PATH / f"{subj}.pkl"
     if not pkl_path.exists():
         print(f"[AVERT] Fișier lipsă: {pkl_path}, sărim.")
         continue
 
     signals, labels = load_data_wesad(pkl_path)
-    signals, labels = cut_30s(signals, labels, fs_dict={'EDA':4,'TEMP':4,'ACC':32,'BVP':64}, fs_label=700)
+    signals, labels = cut_30s(signals, labels, fs_dict=FS, fs_label=FS_LABEL)
 
-    labels = labels[np.isin(labels, [1,2,3,4])]  # păstrăm doar etichetele cunoscute
-    labels_all.append(labels)
+    # filtrare semnale (ca în pipeline)
+    signals["EDA"] = filter_eda(signals["EDA"], fs=FS["EDA"])
+    signals["BVP"] = filter_bvp(signals["BVP"], fs=FS["BVP"])
+    signals["TEMP"] = filter_temp(signals["TEMP"], fs=FS["TEMP"])
+    signals["ACC"] = filter_acc(signals["ACC"], fs=FS["ACC"])
 
-# ---- CORECT: concatenează toate etichetele într-un singur vector ----
-if len(labels_all) == 0:
-    raise RuntimeError("Nu am găsit niciun fișier valid; verifică DATASET_PATH.")
-labels_all = np.concatenate(labels_all)
+    # labels binare {0,1,-1}
+    labels_bin = map_labels_to_binary_vector(labels)
 
-# --- Mapare la 2 clase --- #
-labels_binary = np.where(labels_all == 2, 'Stress', 'Non-stress')
+    # ferestre + y (labels_list)
+    _, _, _, _, labels_list = sliding_windows(
+        signals=signals,
+        labels=labels_bin,
+        fs_dict=FS,
+        fs_label=FS_LABEL,
+        window_s=WINDOW_S,
+        step_s=STEP_S,
+        max_transition_ratio=MAX_TRANSITION_RATIO
+    )
 
-# --- Calcule --- #
+    y_subj = np.asarray(labels_list, dtype=np.int8)
+    if y_subj.size == 0:
+        print(f"{subj}: 0 ferestre (posibil prea strict MAX_TRANSITION_RATIO)")
+        continue
+
+    u, c = np.unique(y_subj, return_counts=True)
+    print(f"{subj}: ferestre={len(y_subj)}  class_counts={dict(zip(u.tolist(), c.tolist()))}")
+
+    y_all.append(y_subj)
+
+if len(y_all) == 0:
+    raise RuntimeError("Nu s-a generat nicio fereastră. Relaxează MAX_TRANSITION_RATIO sau verifică datele.")
+
+y_all = np.concatenate(y_all)
+
+labels_binary = np.where(y_all == 1, 'Stress', 'Non-stress')
 counts = pd.Series(labels_binary).value_counts()
 percentages = counts / counts.sum() * 100
 
-print("\n--- Distribuție totală ---")
+print("\n--- Distribuție totală PE FERESTRE ---")
 print(counts)
 print(percentages.round(2))
 
-# asigură ordinea dorită în grafice
 order = ['Stress', 'Non-stress']
 counts = counts.reindex(order, fill_value=0)
-percentages = percentages.reindex(order, fill_value=0)
 
-# --- Ploturi --- #
-plt.figure(figsize=(12,4))
-plt.subplot(1,2,1)
-ax = counts.plot(kind='bar', color=['tomato','skyblue'], rot=0)
-plt.title("Distribuția claselor (Stress vs Non-Stress)")
-plt.ylabel("Număr eșantioane")
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 2, 1)
+ax = counts.plot(kind='bar', rot=0)
+plt.title("Distribuția pe ferestre (Stress vs Non-Stress)")
+plt.ylabel("Număr ferestre")
 plt.grid(axis='y', alpha=0.3)
 
-# Adaugă etichete numerice deasupra fiecărei bare.
-# Încercăm ax.bar_label (disponibil în matplotlib >= 3.4). Dacă nu e disponibil,
-# revenim la fallback-ul cu ax.patches pentru compatibilitate.
-try:
-    for container in ax.containers:
-        ax.bar_label(container, fmt='%d', label_type='edge')
-except Exception:
-    max_count = counts.max() if len(counts) else 0
-    offset = max(1, int(max_count * 0.01))  # offset mic deasupra barei
-    for p in ax.patches:
-        height = p.get_height()
-        ax.text(
-            p.get_x() + p.get_width() / 2,
-            height + offset,
-            f'{int(height)}',
-            ha='center',
-            va='bottom',
-            fontsize=9
-        )
+for p in ax.patches:
+    height = p.get_height()
+    ax.text(p.get_x() + p.get_width() / 2, height, f"{int(height)}",
+            ha='center', va='bottom', fontsize=9)
 
-plt.subplot(1,2,2)
-plt.pie(counts, labels=counts.index, autopct='%1.1f%%',
-        colors=['tomato','skyblue'], startangle=90)
-plt.title("Proporția totală a claselor")
+plt.subplot(1, 2, 2)
+plt.pie(counts, labels=counts.index, autopct='%1.1f%%', startangle=90)
+plt.title("Proporția pe ferestre")
 plt.tight_layout()
 
-savefig_nice(OUT_DIR/"class_distribution_stress_vs_nonstress.png", close=True)
-
-
-
+savefig_nice(OUT_DIR / "class_distribution_WINDOWS_stress_vs_nonstress.png", close=True)
