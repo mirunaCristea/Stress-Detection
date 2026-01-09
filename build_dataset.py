@@ -128,19 +128,16 @@ def build_full_dataset(wesad_dir="data/WESAD"):
 
 
 
-def save_feature_dataset(X: pd.DataFrame, y: np.ndarray, groups: np.ndarray, out_path="data/features/all_features.parquet"):
+def save_feature_dataset(X: pd.DataFrame, y: np.ndarray, groups: np.ndarray, out_path="data/features/all_features.csv"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
-    df = X.copy()
-    df["label"] = y
-    df["subject"] = groups
+    X.to_csv(out_path, index=False)
+    np.save(out_path.replace(".csv", "_y.npy"), y)
+    np.save(out_path.replace(".csv", "_groups.npy"), groups)
+    print("[OK] Salvat CSV+NPY:", out_path)
 
-    df.to_parquet(out_path, index=False)
-    print(f"[OK] Salvat: {out_path}")
-
-def load_feature_dataset(path="data/features/all_features.parquet"):
-    df = pd.read_parquet(path)
-    y = df["label"].values
-    groups = df["subject"].values
-    X = df.drop(columns=["label", "subject"])
+def load_feature_dataset(path="data/features/all_features.csv"):
+    X = pd.read_csv(path)
+    y = np.load(path.replace(".csv", "_y.npy"), allow_pickle=True)
+    groups = np.load(path.replace(".csv", "_groups.npy"), allow_pickle=True)
     return X, y, groups

@@ -5,13 +5,14 @@ from build_dataset import save_feature_dataset, load_feature_dataset
 def main():
 # pt salvarea de feature-uri, de comentat dupa ce le-am salvat adica dupa ce le am rulat o data
     X, y, groups = build_full_dataset("data/WESAD")
-    save_feature_dataset(X, y, groups, "data/features/wesad_features_all.parquet")
-    # X, y, groups = build_full_dataset("data/WESAD")
+    save_feature_dataset(X, y, groups, "data/features/wesad_features_all.csv")
+    #X, y, groups = build_full_dataset("data/WESAD")
 
-    # X, y, groups = load_feature_dataset("data/features/wesad_features_all.parquet")
+    # X, y, groups = load_feature_dataset("data/features/wesad_features_all.csv")
        
        
-    #     # # antrenează
+    # #     # # antrenează
+    # # 
     # res_rf = run_loso(X, y, groups, model_name="rf")
 
 
@@ -20,7 +21,7 @@ def main():
 
 
     # # salvezi rezultate
-    # res_rf.to_csv("data/results/loso_rf.csv", index=False)
+    res_rf.to_csv("data/results/loso_rf.csv", index=False)
 
 if __name__ == "__main__":
     main()
