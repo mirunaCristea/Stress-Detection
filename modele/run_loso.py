@@ -5,6 +5,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -45,6 +46,7 @@ def run_loso(
             random_state=42
         )
         use_proba = True
+        ### prin class_weight="balanced" gestionez dezechilibrul claselor, creste penalizarea eroriilor pe clasa minoritara
     elif model_name == "rf":
         clf = RandomForestClassifier(
             n_estimators=400,
@@ -53,18 +55,27 @@ def run_loso(
             n_jobs=-1
         )
         use_proba = True
+    elif model_name == "svm":
+        clf = SVC(
+            kernel="rbf",
+            probability=True,
+            class_weight="balanced",
+            random_state=42
+        )
+        use_proba = True
     else:
-        raise ValueError("model_name must be 'logreg' or 'rf'")
+        raise ValueError("model_name must be 'logreg', 'rf', or 'svm'")
+
 
     # =========================
     # 2) Pipeline
     # =========================
     pipe = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
+        ("scaler", StandardScaler()),    
         ("clf", clf)
     ])
-
+    ## prin imputer cu mediană evit NaN-urile (dacă există), prin StandardScaler normalizez datele Z-score      
     cm_total = np.zeros((2, 2), dtype=int)
 
     # =========================
@@ -104,7 +115,9 @@ def run_loso(
         print(
             f"[Fold {fold:02d}] "
             f"Recall_stress={m['recall_stress']:.3f} | "
-            f"F1_stress={m['f1_stress']:.3f}"
+            f"F1_stress={m['f1_stress']:.3f} |"
+            f"Balanced_Acc={m['balanced_accuracy']:.3f} |"
+            f"Acc={m['accuracy']:.3f}"
         )
 
     df_res = pd.DataFrame(results)

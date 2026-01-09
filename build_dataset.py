@@ -7,50 +7,53 @@ import pandas as pd
 from preprocesare._01_incarcare_taiere import load_data_wesad, cut_30s, map_labels_to_binary_vector
 from preprocesare._02_filtrare_semnale import filter_eda, filter_bvp, filter_acc, filter_temp
 from feature_extraction._01_ferestre_feature import sliding_windows
+from feature_extraction._05_concateneaza_features import concatenate_features
+# (sau cum se numește fișierul în care ai concatenate_features)
+
 
 
 FS = {"ACC": 32, "BVP": 64, "EDA": 4, "TEMP": 4}
 FS_LABEL = 700
 
 
-def _extract_features_from_window(win_eda, win_bvp, win_temp, win_acc):
-    """
-    Feature-uri simple (baseline) per fereastră.
-    Returnează un dict -> devine un rând în tabel.
-    """
-    win_eda = np.asarray(win_eda, dtype=float).reshape(-1)
-    win_bvp = np.asarray(win_bvp, dtype=float).reshape(-1)
-    win_temp = np.asarray(win_temp, dtype=float).reshape(-1)
-    win_acc = np.asarray(win_acc, dtype=float)  # (N,3)
+# def _extract_features_from_window(win_eda, win_bvp, win_temp, win_acc):
+#     """
+#     Feature-uri simple (baseline) per fereastră.
+#     Returnează un dict -> devine un rând în tabel.
+#     """
+#     win_eda = np.asarray(win_eda, dtype=float).reshape(-1)
+#     win_bvp = np.asarray(win_bvp, dtype=float).reshape(-1)
+#     win_temp = np.asarray(win_temp, dtype=float).reshape(-1)
+#     win_acc = np.asarray(win_acc, dtype=float)  # (N,3)
 
-    # magnitudinea ACC
-    if win_acc.ndim == 2 and win_acc.shape[1] == 3:
-        acc_mag = np.sqrt(np.sum(win_acc * win_acc, axis=1))
-    else:
-        acc_mag = win_acc.reshape(-1)
+#     # magnitudinea ACC
+#     if win_acc.ndim == 2 and win_acc.shape[1] == 3:
+#         acc_mag = np.sqrt(np.sum(win_acc * win_acc, axis=1))
+#     else:
+#         acc_mag = win_acc.reshape(-1)
 
-    def safe_stats(x):
-        x = x[np.isfinite(x)]
-        if x.size == 0:
-            return 0.0, 0.0, 0.0, 0.0
-        return float(np.mean(x)), float(np.std(x)), float(np.min(x)), float(np.max(x))
+#     def safe_stats(x):
+#         x = x[np.isfinite(x)]
+#         if x.size == 0:
+#             return 0.0, 0.0, 0.0, 0.0
+#         return float(np.mean(x)), float(np.std(x)), float(np.min(x)), float(np.max(x))
 
-    eda_mean, eda_std, eda_min, eda_max = safe_stats(win_eda)
-    bvp_mean, bvp_std, bvp_min, bvp_max = safe_stats(win_bvp)
-    temp_mean, temp_std, temp_min, temp_max = safe_stats(win_temp)
-    acc_mean, acc_std, acc_min, acc_max = safe_stats(acc_mag)
+#     eda_mean, eda_std, eda_min, eda_max = safe_stats(win_eda)
+#     bvp_mean, bvp_std, bvp_min, bvp_max = safe_stats(win_bvp)
+#     temp_mean, temp_std, temp_min, temp_max = safe_stats(win_temp)
+#     acc_mean, acc_std, acc_min, acc_max = safe_stats(acc_mag)
 
-    return {
-        "eda_mean": eda_mean, "eda_std": eda_std, "eda_min": eda_min, "eda_max": eda_max,
-        "bvp_mean": bvp_mean, "bvp_std": bvp_std, "bvp_min": bvp_min, "bvp_max": bvp_max,
-        "temp_mean": temp_mean, "temp_std": temp_std, "temp_min": temp_min, "temp_max": temp_max,
-        "acc_mean": acc_mean, "acc_std": acc_std, "acc_min": acc_min, "acc_max": acc_max,
-    }
+#     return {
+#         "eda_mean": eda_mean, "eda_std": eda_std, "eda_min": eda_min, "eda_max": eda_max,
+#         "bvp_mean": bvp_mean, "bvp_std": bvp_std, "bvp_min": bvp_min, "bvp_max": bvp_max,
+#         "temp_mean": temp_mean, "temp_std": temp_std, "temp_min": temp_min, "temp_max": temp_max,
+#         "acc_mean": acc_mean, "acc_std": acc_std, "acc_min": acc_min, "acc_max": acc_max,
+#     }
 
 
 def build_full_dataset(
     wesad_dir,
-    window_s=30,
+    window_s=60,
     step_s=5,
     max_transition_ratio=0.25,
     exclude_subjects=("S12",),
@@ -104,11 +107,22 @@ def build_full_dataset(
             continue
 
         # 5) features per fereastră
-        for i in range(len(y_win)):
-            feats = _extract_features_from_window(w_eda[i], w_bvp[i], w_temp[i], w_acc[i])
-            rows.append(feats)
-            y_all.append(int(y_win[i]))
-            groups.append(subj)
+        feat_rows = concatenate_features(
+            window_eda=w_eda,
+            window_bvp=w_bvp,
+            window_temp=w_temp,
+            window_acc=w_acc,
+            fs_bvp=FS["BVP"]
+        )
+        if len(feat_rows) != len(y_win):
+            raise RuntimeError(
+                f"{subj}: mismatch ferestre: feat_rows={len(feat_rows)} vs y_win={len(y_win)}"
+            )
+
+# feat_rows are aceeași lungime ca y_win
+        rows.extend(feat_rows)
+        y_all.extend([int(v) for v in y_win])
+        groups.extend([subj] * len(y_win))
 
         print(f"[OK] {subj}: ferestre={len(y_win)}")
 
@@ -129,13 +143,15 @@ def build_full_dataset(
     return X, y, groups
 
 
-def save_feature_dataset(X, y, groups, out_path):
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+def save_feature_dataset(X, y, groups, out_path1,out_path2):
+    os.makedirs(os.path.dirname(out_path1), exist_ok=True)
     df = X.copy()
     df["y"] = y.astype(int)
     df["group"] = groups
-    df.to_parquet(out_path, index=False)
-    print(f"[SALVAT] {out_path}")
+    df.to_parquet(out_path1, index=False)
+    print(f"[SALVAT] {out_path1}")
+    df.to_csv(out_path2, index=False)
+    print(f"[SALVAT] {out_path2}")
 
 
 def load_feature_dataset(path):

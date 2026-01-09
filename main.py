@@ -33,7 +33,9 @@ from modele.run_loso import run_loso
 # =========================
 
 LOAD_FROM_PARQUET = True
-FEATURES_PATH = "data/features/wesad_features_all.parquet"
+FEATURES_PATH1 = "./data/features/wesad_features_all.parquet"
+FEATURES_PATH2 = "./data/features/wesad_features_all.csv"
+FEATURES_PATH_WITHOUT_ACC = "./data/features/wesad_features_no_acc.parquet"
 WESAD_PATH = "data/WESAD"
 
 # Foldere output
@@ -47,9 +49,10 @@ FIGS_DIR = Path("figs_dataset")   # aici salvăm figura cu pragurile
 
 RUN_RF = False
 RUN_LOGREG = True
+RUN_SVM = False
 
 # ✅ switch simplu (nu mai comentezi cod)
-RUN_SWEEP = False   # True doar când vrei analiza pragurilor
+RUN_SWEEP = True   # True doar când vrei analiza pragurilor
 
 # Pragul final (ales după analiză)
 BEST_THRESHOLD = 0.40
@@ -71,13 +74,13 @@ def main():
     # =========================
     if LOAD_FROM_PARQUET:
         print("[INFO] Încarc datasetul din parquet...")
-        X, y, groups = load_feature_dataset(FEATURES_PATH)
+        X, y, groups = load_feature_dataset(FEATURES_PATH1)
     else:
         print("[INFO] Construiesc datasetul din WESAD...")
         X, y, groups = build_full_dataset(WESAD_PATH)
 
         print("[INFO] Salvez datasetul pentru rulări viitoare...")
-        save_feature_dataset(X, y, groups, FEATURES_PATH)
+        save_feature_dataset(X, y, groups, FEATURES_PATH1,FEATURES_PATH2)
 
     print("\n[INFO] Dataset încărcat:")
     print("  X shape:", X.shape)
@@ -116,7 +119,15 @@ def main():
         out_rf = RESULTS_DIR / "loso_rf.csv"
         res_rf.to_csv(out_rf, index=False)
         print(f"[SALVAT] {out_rf}")
-
+    # =========================
+    # (opțional) SVM
+    # =========================
+    if RUN_SVM:
+        print("\n[INFO] Rulez SVM (LOSO)...")
+        res_svm = run_loso(X, y, groups, model_name="svm")
+        out_svm = RESULTS_DIR / "loso_svm.csv"
+        res_svm.to_csv(out_svm, index=False)
+        print(f"[SALVAT] {out_svm}")
 
 # ============================================================
 # FUNCȚIE: THRESHOLD SWEEP + CSV + FIGURĂ (cu legendă)
