@@ -14,7 +14,7 @@ from modele.cnn_model import CNN1D
 import time
 import os
 
-torch.set_num_threads(8)
+torch.set_num_threads(12)
 torch.set_num_interop_threads(2)
 
 def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
