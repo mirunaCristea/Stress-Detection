@@ -16,39 +16,24 @@ FS = {"ACC": 32, "BVP": 64, "EDA": 4, "TEMP": 4}
 FS_LABEL = 700
 
 
-# def _extract_features_from_window(win_eda, win_bvp, win_temp, win_acc):
-#     """
-#     Feature-uri simple (baseline) per fereastră.
-#     Returnează un dict -> devine un rând în tabel.
-#     """
-#     win_eda = np.asarray(win_eda, dtype=float).reshape(-1)
-#     win_bvp = np.asarray(win_bvp, dtype=float).reshape(-1)
-#     win_temp = np.asarray(win_temp, dtype=float).reshape(-1)
-#     win_acc = np.asarray(win_acc, dtype=float)  # (N,3)
 
-#     # magnitudinea ACC
-#     if win_acc.ndim == 2 and win_acc.shape[1] == 3:
-#         acc_mag = np.sqrt(np.sum(win_acc * win_acc, axis=1))
+# def motion_score(acc_win):
+#     """
+#     Returnează un scor de mișcare pt o fereastră ACC.
+#     Folosim std-ul magnitudinii (robust).
+#     """
+#     acc = np.asarray(acc_win, dtype=float)
+#     if acc.ndim == 2 and acc.shape[1] == 3:
+#         mag = np.sqrt((acc * acc).sum(axis=1))
 #     else:
-#         acc_mag = win_acc.reshape(-1)
+#         mag = acc.reshape(-1)
 
-#     def safe_stats(x):
-#         x = x[np.isfinite(x)]
-#         if x.size == 0:
-#             return 0.0, 0.0, 0.0, 0.0
-#         return float(np.mean(x)), float(np.std(x)), float(np.min(x)), float(np.max(x))
+#     mag = mag[np.isfinite(mag)]
+#     if mag.size == 0:
+#         return 0.0
+#     return float(np.std(mag))
 
-#     eda_mean, eda_std, eda_min, eda_max = safe_stats(win_eda)
-#     bvp_mean, bvp_std, bvp_min, bvp_max = safe_stats(win_bvp)
-#     temp_mean, temp_std, temp_min, temp_max = safe_stats(win_temp)
-#     acc_mean, acc_std, acc_min, acc_max = safe_stats(acc_mag)
 
-#     return {
-#         "eda_mean": eda_mean, "eda_std": eda_std, "eda_min": eda_min, "eda_max": eda_max,
-#         "bvp_mean": bvp_mean, "bvp_std": bvp_std, "bvp_min": bvp_min, "bvp_max": bvp_max,
-#         "temp_mean": temp_mean, "temp_std": temp_std, "temp_min": temp_min, "temp_max": temp_max,
-#         "acc_mean": acc_mean, "acc_std": acc_std, "acc_min": acc_min, "acc_max": acc_max,
-#     }
 
 
 def build_full_dataset(
@@ -106,6 +91,13 @@ def build_full_dataset(
             print(f"[INFO] {subj}: 0 ferestre (poate filtre prea stricte).")
             continue
 
+        # 4.5) Filtrare ferestre cu mișcare exagerată (artefacte)
+        # w_eda, w_bvp, w_temp, w_acc, y_win = filter_noisy_windows_by_motion(
+        #     w_eda, w_bvp, w_temp, w_acc, y_win,
+        #     drop_top_pct=10,   # scoți top 10% cele mai agitate
+        #     min_keep=50        # păstrezi măcar 50 ferestre/subiect
+        # )
+        
         # 5) features per fereastră
         feat_rows = concatenate_features(
             window_eda=w_eda,
@@ -114,12 +106,35 @@ def build_full_dataset(
             window_acc=w_acc,
             fs_bvp=FS["BVP"]
         )
+  
+
+
+        # OPTIONAL (PT IMBUNATATIREA DATASET-ULUI):
+        # 5.1) scos ferestrele noisy cy ajutorul acceleratoeo
+#########################################################       
+        # keep_idx = []
+        # for i in range(len(y_win)):
+        #     if motion_score(w_acc[i]) < 0.30:   # prag de calibrat!
+        #         keep_idx.append(i)
+
+        # feat_rows = [feat_rows[i] for i in keep_idx]
+        # y_win_kept = [y_win[i] for i in keep_idx]
+        # y_win = y_win_kept
+     ########################################################
+     # 5.2) optional: scos feature-urile ACC din dataset
+########################################################`
+        # feat_rows_no_acc = []
+        # for feats in feat_rows:
+        #     feats_no_acc = {k: v for k, v in feats.items() if not k.startswith("ACC_")}
+        #     feat_rows_no_acc.append(feats_no_acc)
+
+        # feat_rows = feat_rows_no_acc
+##########################################################        
+# feat_rows are aceeași lungime ca y_win
         if len(feat_rows) != len(y_win):
             raise RuntimeError(
                 f"{subj}: mismatch ferestre: feat_rows={len(feat_rows)} vs y_win={len(y_win)}"
             )
-
-# feat_rows are aceeași lungime ca y_win
         rows.extend(feat_rows)
         y_all.extend([int(v) for v in y_win])
         groups.extend([subj] * len(y_win))

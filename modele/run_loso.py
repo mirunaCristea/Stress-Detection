@@ -132,3 +132,23 @@ def run_loso(
         return df_res, np.array(y_true_all), np.array(y_score_all)
 
     return df_res
+
+def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
+    """
+    Alege threshold-ul optim pe TRAIN, fără leakage.
+    objective: "f1_stress" sau "recall_stress"
+    """
+    best_th = 0.5
+    best_val = -1.0
+
+    # praguri candidate
+    for th in np.linspace(0.05, 0.95, 91):
+        y_pred = (y_prob >= th).astype(int)
+        m = compute_classification_metrics(y_true, y_pred)
+
+        val = m[objective]
+        if val > best_val:
+            best_val = val
+            best_th = float(th)
+
+    return best_th, best_val
