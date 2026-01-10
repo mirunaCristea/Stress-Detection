@@ -25,15 +25,31 @@ from build_dataset import (
     load_feature_dataset
 )
 
-from modele.run_loso import run_loso
+from modele.run_loso import run_loso, choose_threshold_from_train
+
+from modele.cnn_dataset import build_cnn_dataset
+from modele.run_loso_cnn import run_loso_cnn
+
+import os
+
+# limitează BLAS / numpy / sklearn
+os.environ["OMP_NUM_THREADS"] = "8"
+os.environ["MKL_NUM_THREADS"] = "8"
+os.environ["OPENBLAS_NUM_THREADS"] = "8"
+os.environ["NUMEXPR_NUM_THREADS"] = "8"
 
 
 # =========================
 # CONFIGURARE GENERALĂ
 # =========================
 
-LOAD_FROM_PARQUET = True
-FEATURES_PATH = "data/features/wesad_features_all.parquet"
+LOAD_FROM_PARQUET =True
+FEATURES_PATH1 = "./data/features/wesad_features_all.parquet"
+FEATURES_PATH2 = "./data/features/wesad_features_all.csv"
+FEATURES_PATH_WITHOUT_NOISE1 = "./data/features/wesad_features_no_noise.parquet"
+FEATURES_PATH_WITHOUT_NOISE2 = "./data/features/wesad_features_no_noise.csv"
+FEATURES_PATH_WITHOUT_ACC1 = "./data/features/wesad_features_no_acc.parquet"
+FEATURES_PATH_WITHOUT_ACC2 = "./data/features/wesad_features_no_acc.csv"
 WESAD_PATH = "data/WESAD"
 
 # Foldere output
@@ -45,8 +61,10 @@ FIGS_DIR = Path("figs_dataset")   # aici salvăm figura cu pragurile
 # CONFIGURARE RULARE
 # =========================
 
-RUN_RF = False
+RUN_RF = True
 RUN_LOGREG = True
+RUN_SVM = True
+RUN_CNN=False
 
 # ✅ switch simplu (nu mai comentezi cod)
 RUN_SWEEP = False   # True doar când vrei analiza pragurilor
@@ -71,13 +89,13 @@ def main():
     # =========================
     if LOAD_FROM_PARQUET:
         print("[INFO] Încarc datasetul din parquet...")
-        X, y, groups = load_feature_dataset(FEATURES_PATH)
+        X, y, groups = load_feature_dataset(FEATURES_PATH1)
     else:
         print("[INFO] Construiesc datasetul din WESAD...")
         X, y, groups = build_full_dataset(WESAD_PATH)
 
         print("[INFO] Salvez datasetul pentru rulări viitoare...")
-        save_feature_dataset(X, y, groups, FEATURES_PATH)
+        save_feature_dataset(X, y, groups, FEATURES_PATH_WITHOUT_NOISE1,FEATURES_PATH_WITHOUT_NOISE2)
 
     print("\n[INFO] Dataset încărcat:")
     print("  X shape:", X.shape)
@@ -116,6 +134,29 @@ def main():
         out_rf = RESULTS_DIR / "loso_rf.csv"
         res_rf.to_csv(out_rf, index=False)
         print(f"[SALVAT] {out_rf}")
+    # =========================
+    # (opțional) SVM
+    # =========================
+    if RUN_SVM:
+        print("\n[INFO] Rulez SVM (LOSO)...")
+        res_svm = run_loso(X, y, groups, model_name="svm")
+        out_svm = RESULTS_DIR / "loso_svm.csv"
+        res_svm.to_csv(out_svm, index=False)
+        print(f"[SALVAT] {out_svm}")
+
+#=========================================
+# MODEL CNN
+#=========================================
+    if RUN_CNN:
+        X_cnn, y_cnn, groups_cnn = build_cnn_dataset(
+            wesad_dir=WESAD_PATH,
+            window_s=30,
+            step_s=5,
+            target_fs=32
+        )
+
+        res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=15, batch_size=64,
+                            use_dynamic_threshold=True, objective="f1_stress")
 
 
 # ============================================================

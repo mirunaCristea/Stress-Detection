@@ -5,6 +5,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -45,6 +46,7 @@ def run_loso(
             random_state=42
         )
         use_proba = True
+        ### prin class_weight="balanced" gestionez dezechilibrul claselor, creste penalizarea eroriilor pe clasa minoritara
     elif model_name == "rf":
         clf = RandomForestClassifier(
             n_estimators=400,
@@ -53,18 +55,27 @@ def run_loso(
             n_jobs=-1
         )
         use_proba = True
+    elif model_name == "svm":
+        clf = SVC(
+            kernel="rbf",
+            probability=True,
+            class_weight="balanced",
+            random_state=42
+        )
+        use_proba = True
     else:
-        raise ValueError("model_name must be 'logreg' or 'rf'")
+        raise ValueError("model_name must be 'logreg', 'rf', or 'svm'")
+
 
     # =========================
     # 2) Pipeline
     # =========================
     pipe = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
+        ("scaler", StandardScaler()),    
         ("clf", clf)
     ])
-
+    ## prin imputer cu mediană evit NaN-urile (dacă există), prin StandardScaler normalizez datele Z-score      
     cm_total = np.zeros((2, 2), dtype=int)
 
     # =========================
@@ -104,7 +115,9 @@ def run_loso(
         print(
             f"[Fold {fold:02d}] "
             f"Recall_stress={m['recall_stress']:.3f} | "
-            f"F1_stress={m['f1_stress']:.3f}"
+            f"F1_stress={m['f1_stress']:.3f} |"
+            f"Balanced_Acc={m['balanced_accuracy']:.3f} |"
+            f"Acc={m['accuracy']:.3f}"
         )
 
     df_res = pd.DataFrame(results)
@@ -119,3 +132,23 @@ def run_loso(
         return df_res, np.array(y_true_all), np.array(y_score_all)
 
     return df_res
+
+def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
+    """
+    Alege threshold-ul optim pe TRAIN, fără leakage.
+    objective: "f1_stress" sau "recall_stress"
+    """
+    best_th = 0.5
+    best_val = -1.0
+
+    # praguri candidate
+    for th in np.linspace(0.05, 0.95, 91):
+        y_pred = (y_prob >= th).astype(int)
+        m = compute_classification_metrics(y_true, y_pred)
+
+        val = m[objective]
+        if val > best_val:
+            best_val = val
+            best_th = float(th)
+
+    return best_th, best_val
