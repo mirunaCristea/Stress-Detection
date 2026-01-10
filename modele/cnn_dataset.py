@@ -115,7 +115,7 @@ def build_cnn_dataset(
         if len(y_win) == 0:
             print(f"[INFO] {subj}: 0 ferestre.")
             continue
-
+        added = 0
         # 5) construim tensor (C,T) per fereastră
         for i in range(len(y_win)):
             # semnale pe fereastră
@@ -149,8 +149,9 @@ def build_cnn_dataset(
             X_all.append(X_ct.astype(np.float32))
             y_all.append(int(y_win[i]))
             groups_all.append(subj)
+            added+=1
 
-        print(f"[OK] {subj}: ferestre CNN={len(y_win)}")
+        print(f"[OK] {subj}: y_win={len(y_win)} | kept={added} | dropped={len(y_win)-added}")
 
     if not X_all:
         raise RuntimeError("Nu s-a generat niciun exemplu CNN.")

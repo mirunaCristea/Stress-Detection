@@ -11,8 +11,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 
 from modele.metrics import compute_classification_metrics, compute_confusion_matrix
-
-
+import joblib
+import os
 def run_loso(
     X: pd.DataFrame,
     y: np.ndarray,
@@ -133,22 +133,5 @@ def run_loso(
 
     return df_res
 
-def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
-    """
-    Alege threshold-ul optim pe TRAIN, fără leakage.
-    objective: "f1_stress" sau "recall_stress"
-    """
-    best_th = 0.5
-    best_val = -1.0
 
-    # praguri candidate
-    for th in np.linspace(0.05, 0.95, 91):
-        y_pred = (y_prob >= th).astype(int)
-        m = compute_classification_metrics(y_true, y_pred)
 
-        val = m[objective]
-        if val > best_val:
-            best_val = val
-            best_th = float(th)
-
-    return best_th, best_val

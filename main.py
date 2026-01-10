@@ -25,13 +25,19 @@ from build_dataset import (
     load_feature_dataset
 )
 
-from modele.run_loso import run_loso, choose_threshold_from_train
+from modele.run_loso import run_loso
 
 from modele.cnn_dataset import build_cnn_dataset
 from modele.run_loso_cnn import run_loso_cnn
+from modele.rf_cnn import save_rf_model, save_cnn_model, train_final_cnn,train_final_rf,train_subject_holdout_rf, train_subject_holdout_cnn
 
 import os
-
+from modele.plots import (
+    plot_confusion_matrix, plot_roc_curve, plot_pr_curve,
+    plot_score_distributions, plot_calibration_curve,
+    threshold_sweep, plot_threshold_sweep,
+    plot_rf_feature_importance, plot_permutation_importance,plot_loss_and_accuracy,
+)
 # limitează BLAS / numpy / sklearn
 os.environ["OMP_NUM_THREADS"] = "8"
 os.environ["MKL_NUM_THREADS"] = "8"
@@ -62,9 +68,10 @@ FIGS_DIR = Path("figs_dataset")   # aici salvăm figura cu pragurile
 # =========================
 
 RUN_RF = True
-RUN_LOGREG = True
-RUN_SVM = True
-RUN_CNN=False
+RUN_LOGREG = False
+RUN_SVM = False
+RUN_CNN=True
+SAVE_MODEL=True
 
 # ✅ switch simplu (nu mai comentezi cod)
 RUN_SWEEP = False   # True doar când vrei analiza pragurilor
@@ -130,10 +137,35 @@ def main():
     # =========================
     if RUN_RF:
         print("\n[INFO] Rulez Random Forest (LOSO)...")
-        res_rf = run_loso(X, y, groups, model_name="rf")
-        out_rf = RESULTS_DIR / "loso_rf.csv"
-        res_rf.to_csv(out_rf, index=False)
-        print(f"[SALVAT] {out_rf}")
+        #res_rf = run_loso(X, y, groups, model_name="rf")
+        #out_rf = RESULTS_DIR / "loso_rf.csv"
+        #res_rf.to_csv(out_rf, index=False)
+        #print(f"[SALVAT] {out_rf}")
+        if SAVE_MODEL:
+            out = train_subject_holdout_rf(
+            X=X, y=y, groups=groups,
+            seed=123,
+            save_path="modele/saved_models/rf_train14_holdout.pkl"
+)
+            y_true_rf = out["y_true"]
+            y_pred_rf = out["y_pred"]
+            model_rf = out["model"]
+            feat_cols = out["feature_cols"]
+            X_te = out["X_test"]
+
+            # probas:
+
+            y_prob_rf = model_rf.predict_proba(X_te)[:, 1]
+            plot_confusion_matrix(out["confusion_matrix"], title=f"RF CM (test={out['test_subject']})", normalize="true", savepath="modele/saved_graphs/rf_cm.png")
+            plot_roc_curve(y_true_rf, y_prob_rf, title="RF ROC", savepath="modele/saved_graphs/rf_roc.png")
+            plot_pr_curve(y_true_rf, y_prob_rf, title="RF PR", savepath="modele/saved_graphs/rf_pr.png")
+            plot_score_distributions(y_true_rf, y_prob_rf, title="RF score distributions", savepath="modele/saved_graphs/rf_score_distributions.png")
+            plot_calibration_curve(y_true_rf, y_prob_rf, title="RF calibration", savepath="modele/saved_graphs/rf_calibration.png")
+
+            plot_rf_feature_importance(model_rf, feature_names=feat_cols, top_k=20, title="RF feature importance", savepath="modele/saved_graphs/rf_feature_importance.png")
+            plot_permutation_importance(model_rf, X_te, y_true_rf, feature_names=feat_cols, scoring="f1", top_k=20, title="RF permutation importance", savepath="modele/saved_graphs/rf_permutation_importance.png")
+            # final_rf, feature_cols = train_final_rf(X, y, use_scaler=True)
+            # save_rf_model(final_rf, feature_cols=feature_cols, path="modele/saved_models/rf_stress_final.pkl")
     # =========================
     # (opțional) SVM
     # =========================
@@ -150,15 +182,36 @@ def main():
     if RUN_CNN:
         X_cnn, y_cnn, groups_cnn = build_cnn_dataset(
             wesad_dir=WESAD_PATH,
-            window_s=30,
+            window_s=60,
             step_s=5,
             target_fs=32
         )
 
-        res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=15, batch_size=64,
-                            use_dynamic_threshold=True, objective="f1_stress")
+        #res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=20, batch_size=64,use_dynamic_threshold=True, objective="f1_stress")
+        # out_cnn = RESULTS_DIR / "loso_cnn.csv"
+        # res_cnn.to_csv(out_cnn, index=False)
+        # print(f"[SALVAT] {out_cnn}")
+        
+        if SAVE_MODEL:
+            out = train_subject_holdout_cnn(
+            X=X_cnn, y=y_cnn, groups=groups_cnn,
+            seed=123,
+            save_path="modele/saved_models/cnn_train14_holdout.pth"
+)
+            # final_cnn = train_final_cnn(X_cnn, y_cnn, epochs=20, batch_size=64, lr=1e-3)
+            # save_cnn_model(final_cnn, in_channels=X_cnn.shape[1], path="modele/saved_models/cnn_stress_final.pth")
+            y_true = out["y_true"]
+            y_prob = out["y_prob"]
+            cm = out["confusion_matrix"]  # dict cu "matrix"
 
-
+            plot_confusion_matrix(cm, title=f"CNN CM (test={out['test_subject']})", normalize="true", savepath="modele/saved_graphs/cnn_cm.png")
+            plot_roc_curve(y_true, y_prob, title="CNN ROC", savepath="modele/saved_graphs/cnn_roc.png")
+            plot_pr_curve(y_true, y_prob, title="CNN PR", savepath="modele/saved_graphs/cnn_pr.png")
+            plot_score_distributions(y_true, y_prob, title="CNN score distributions", savepath="modele/saved_graphs/cnn_score_distributions.png")
+            plot_calibration_curve(y_true, y_prob, title="CNN calibration", savepath="modele/saved_graphs/cnn_calibration.png")
+            sw = threshold_sweep(y_true, y_prob)
+            plot_threshold_sweep(sw, title="CNN metrics vs threshold", savepath="modele/saved_graphs/cnn_threshold_sweep.png")
+            plot_loss_and_accuracy(out["history"], title="CNN: Loss & Accuracy per epoch", savepath="modele/saved_graphs/cnn_loss_accuracy.png")
 # ============================================================
 # FUNCȚIE: THRESHOLD SWEEP + CSV + FIGURĂ (cu legendă)
 # ============================================================
@@ -229,6 +282,9 @@ def run_threshold_sweep(X, y, groups):
     plt.savefig(out_fig, dpi=180, bbox_inches="tight")
     plt.close()
     print(f"[SALVAT] {out_fig}")
+
+
+#=================FIGURI MODELE==================
 
 
 if __name__ == "__main__":
