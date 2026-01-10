@@ -25,10 +25,11 @@ from build_dataset import (
     load_feature_dataset
 )
 
-from modele.run_loso import run_loso, choose_threshold_from_train
+from modele.run_loso import run_loso
 
 from modele.cnn_dataset import build_cnn_dataset
 from modele.run_loso_cnn import run_loso_cnn
+from modele.rf_cnn import save_rf_model, save_cnn_model, train_final_cnn,train_final_rf
 
 import os
 
@@ -62,9 +63,10 @@ FIGS_DIR = Path("figs_dataset")   # aici salvăm figura cu pragurile
 # =========================
 
 RUN_RF = True
-RUN_LOGREG = True
-RUN_SVM = True
-RUN_CNN=False
+RUN_LOGREG = False
+RUN_SVM = False
+RUN_CNN=True
+SAVE_MODEL=True
 
 # ✅ switch simplu (nu mai comentezi cod)
 RUN_SWEEP = False   # True doar când vrei analiza pragurilor
@@ -134,6 +136,9 @@ def main():
         out_rf = RESULTS_DIR / "loso_rf.csv"
         res_rf.to_csv(out_rf, index=False)
         print(f"[SALVAT] {out_rf}")
+        if SAVE_MODEL:
+            final_rf, feature_cols = train_final_rf(X, y, use_scaler=True)
+            save_rf_model(final_rf, feature_cols=feature_cols, path="modele/saved_models/rf_stress_final.pkl")
     # =========================
     # (opțional) SVM
     # =========================
@@ -155,10 +160,14 @@ def main():
             target_fs=32
         )
 
-        res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=15, batch_size=64,
-                            use_dynamic_threshold=True, objective="f1_stress")
-
-
+        res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=15, batch_size=64,use_dynamic_threshold=True, objective="f1_stress")
+        out_cnn = RESULTS_DIR / "loso_cnn.csv"
+        res_cnn.to_csv(out_cnn, index=False)
+        print(f"[SALVAT] {out_cnn}")
+        if SAVE_MODEL:
+            final_cnn = train_final_cnn(X_cnn, y_cnn, epochs=20, batch_size=64, lr=1e-3)
+            save_cnn_model(final_cnn, in_channels=X_cnn.shape[1], path="modele/saved_models/cnn_stress_final.pth")
+    
 # ============================================================
 # FUNCȚIE: THRESHOLD SWEEP + CSV + FIGURĂ (cu legendă)
 # ============================================================

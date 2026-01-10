@@ -12,6 +12,7 @@ from modele.cnn_dataset import CNPTensorDataset
 
 from modele.cnn_model import CNN1D
 import time
+import os
 
 torch.set_num_threads(8)
 torch.set_num_interop_threads(2)
@@ -149,3 +150,5 @@ def run_loso_cnn(
     print(f"\n[TOTAL] LOSO CNN runtime: {total_sec:.1f}s ({total_sec/60:.1f} min)")
 
     return df_res
+
+
