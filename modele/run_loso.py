@@ -47,7 +47,6 @@ def run_loso(
             solver="liblinear",
             random_state=42
         )
-        use_proba = True
         ### prin class_weight="balanced" gestionez dezechilibrul claselor, creste penalizarea eroriilor pe clasa minoritara
     elif model_name == "rf":
         clf = RandomForestClassifier(
@@ -56,7 +55,6 @@ def run_loso(
             class_weight="balanced",
             n_jobs=-1
         )
-        use_proba = True
     elif model_name == "svm":
         clf = SVC(
             kernel="rbf",
@@ -64,7 +62,6 @@ def run_loso(
             class_weight="balanced",
             random_state=42
         )
-        use_proba = True
     else:
         raise ValueError("model_name must be 'logreg', 'rf', or 'svm'")
 
