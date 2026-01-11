@@ -11,8 +11,14 @@ def concatenate_features(
     fs_bvp=64
 ):
     """
-    Concatenează feature-urile EDA, BVP, TEMP, ACC
-    pentru toate ferestrele unui subiect.
+    Concatenează feature-urile EDA, BVP, TEMP, ACC pentru fiecare fereastră.
+
+    Intrări:
+      - window_eda/window_bvp/window_temp/window_acc: liste de ferestre (output din sliding_windows)
+      - fs_bvp: frecvența BVP (Hz), necesară pentru extract_bvp_features
+
+    Ieșire:
+      - features_list: listă de dict-uri (câte un dict pentru fiecare fereastră)
     """
     n_windows = len(window_eda)
     features_list = []
