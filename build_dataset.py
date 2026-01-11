@@ -68,7 +68,7 @@ def build_full_dataset(
         signals, labels = cut_30s(signals, labels, FS, fs_label=FS_LABEL, cut_s=30)
 
         # 2) filtrare semnale
-        signals["EDA"] = filter_eda(signals["EDA"], fs=FS["EDA"])
+        signals["EDA"] =signals["EDA"]
         signals["BVP"] = filter_bvp(signals["BVP"], fs=FS["BVP"])
         signals["TEMP"] = filter_temp(signals["TEMP"], fs=FS["TEMP"])
         signals["ACC"] = filter_acc(signals["ACC"], fs=FS["ACC"])
