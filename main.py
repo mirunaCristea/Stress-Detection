@@ -38,6 +38,7 @@ from modele.plots import (
     threshold_sweep, plot_threshold_sweep,
     plot_rf_feature_importance, plot_permutation_importance,plot_loss_and_accuracy,
 )
+
 # limitează BLAS / numpy / sklearn
 os.environ["OMP_NUM_THREADS"] = "8"
 os.environ["MKL_NUM_THREADS"] = "8"
@@ -49,7 +50,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "8"
 # CONFIGURARE GENERALĂ
 # =========================
 
-LOAD_FROM_PARQUET =True
+LOAD_FROM_PARQUET =False
 FEATURES_PATH1 = "./data/features/wesad_features_all.parquet"
 FEATURES_PATH2 = "./data/features/wesad_features_all.csv"
 FEATURES_PATH_WITHOUT_NOISE1 = "./data/features/wesad_features_no_noise.parquet"
@@ -68,10 +69,10 @@ FIGS_DIR = Path("figs_dataset")   # aici salvăm figura cu pragurile
 # =========================
 
 RUN_RF = True
-RUN_LOGREG = False
-RUN_SVM = False
+RUN_LOGREG = True
+RUN_SVM = True
 RUN_CNN=True
-SAVE_MODEL=True
+SAVE_MODEL=False
 
 # ✅ switch simplu (nu mai comentezi cod)
 RUN_SWEEP = False   # True doar când vrei analiza pragurilor
@@ -91,6 +92,7 @@ def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     FIGS_DIR.mkdir(parents=True, exist_ok=True)
 
+
     # =========================
     # 1) LOAD / BUILD DATASET
     # =========================
@@ -102,7 +104,7 @@ def main():
         X, y, groups = build_full_dataset(WESAD_PATH)
 
         print("[INFO] Salvez datasetul pentru rulări viitoare...")
-        save_feature_dataset(X, y, groups, FEATURES_PATH_WITHOUT_NOISE1,FEATURES_PATH_WITHOUT_NOISE2)
+        save_feature_dataset(X, y, groups, FEATURES_PATH1,FEATURES_PATH2)
 
     print("\n[INFO] Dataset încărcat:")
     print("  X shape:", X.shape)
@@ -112,6 +114,7 @@ def main():
     # =========================
     # 2) ANTRENARE + EVALUARE (LOSO)
     # =========================
+    results = []
 
     # ---------------------------------------------------------
     # A) RUN FINAL (BEST THRESHOLD)  -> pentru rezultatul final
@@ -126,6 +129,8 @@ def main():
         res_best.to_csv(out_best, index=False)
         print(f"[SALVAT] {out_best}")
 
+
+
     # ---------------------------------------------------------
     # B) THRESHOLD SWEEP (analiză praguri)  -> doar când vrei graficul
     # ---------------------------------------------------------
@@ -137,10 +142,11 @@ def main():
     # =========================
     if RUN_RF:
         print("\n[INFO] Rulez Random Forest (LOSO)...")
-        #res_rf = run_loso(X, y, groups, model_name="rf")
-        #out_rf = RESULTS_DIR / "loso_rf.csv"
-        #res_rf.to_csv(out_rf, index=False)
-        #print(f"[SALVAT] {out_rf}")
+        res_rf = run_loso(X, y, groups, model_name="rf")
+        out_rf = RESULTS_DIR / "loso_rf.csv"
+        res_rf.to_csv(out_rf, index=False)
+        print(f"[SALVAT] {out_rf}")
+
         if SAVE_MODEL:
             out = train_subject_holdout_rf(
             X=X, y=y, groups=groups,
@@ -176,6 +182,8 @@ def main():
         res_svm.to_csv(out_svm, index=False)
         print(f"[SALVAT] {out_svm}")
 
+
+
 #=========================================
 # MODEL CNN
 #=========================================
@@ -187,11 +195,11 @@ def main():
             target_fs=32
         )
 
-        #res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=20, batch_size=64,use_dynamic_threshold=True, objective="f1_stress")
-        # out_cnn = RESULTS_DIR / "loso_cnn.csv"
-        # res_cnn.to_csv(out_cnn, index=False)
-        # print(f"[SALVAT] {out_cnn}")
-        
+        res_cnn = run_loso_cnn(X_cnn, y_cnn, groups_cnn, epochs=20, batch_size=64,use_dynamic_threshold=True, objective="f1_stress")
+        out_cnn = RESULTS_DIR / "loso_cnn.csv"
+        res_cnn.to_csv(out_cnn, index=False)
+        print(f"[SALVAT] {out_cnn}")
+
         if SAVE_MODEL:
             out = train_subject_holdout_cnn(
             X=X_cnn, y=y_cnn, groups=groups_cnn,
@@ -212,6 +220,7 @@ def main():
             sw = threshold_sweep(y_true, y_prob)
             plot_threshold_sweep(sw, title="CNN metrics vs threshold", savepath="modele/saved_graphs/cnn_threshold_sweep.png")
             plot_loss_and_accuracy(out["history"], title="CNN: Loss & Accuracy per epoch", savepath="modele/saved_graphs/cnn_loss_accuracy.png")
+
 # ============================================================
 # FUNCȚIE: THRESHOLD SWEEP + CSV + FIGURĂ (cu legendă)
 # ============================================================
@@ -282,6 +291,8 @@ def run_threshold_sweep(X, y, groups):
     plt.savefig(out_fig, dpi=180, bbox_inches="tight")
     plt.close()
     print(f"[SALVAT] {out_fig}")
+
+
 
 
 #=================FIGURI MODELE==================
