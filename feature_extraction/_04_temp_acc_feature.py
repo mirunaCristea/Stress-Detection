@@ -2,10 +2,10 @@ import numpy as np
 
 def extract_temp_features(window):
     """
-    TEMP: STRICT feature-urile cerute
-      - TEMP_mean
-      - TEMP_std
-      - TEMP_slope
+    TEMP: S
+      - TEMP_mean  : media temperaturii
+      - TEMP_std   : variabilitatea
+      - TEMP_slope : panta trendului în fereastră (coeficientul liniar)
     """
     if len(window) == 0:
         return {
@@ -35,8 +35,14 @@ def extract_temp_features(window):
 
 def extract_acc_features(window):
     """
-    ACC: STRICT feature-urile cerute pe 3 axe + net_acc_mean
-    Așteaptă window cu shape (N, 3) = [x,y,z]
+    ACC: feature-urile folosite pe 3 axe + net_acc_mean.
+    Așteaptă window cu shape (N,3) = [x, y, z].
+
+    Feature-uri pe fiecare axă:
+      - ACC_<axis>_mean/std/min/max
+
+    + net_acc_mean:
+      - media magnitudinii accelerației: sqrt(x^2 + y^2 + z^2)
     """
     if len(window) == 0:
         feats = {}

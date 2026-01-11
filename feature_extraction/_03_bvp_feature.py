@@ -2,7 +2,10 @@ import numpy as np
 import neurokit2 as nk
 
 def _safe_stats_1d(x):
-    """Întoarce mean, std, min, max pentru un vector 1D."""
+    """
+    Statistici NaN-safe pentru vector 1D.
+    Returnează (mean, std, min, max). Dacă nu se poate, întoarce 0.0.
+    """
     x = np.asarray(x, dtype=float).reshape(-1)
     if x.size == 0 or np.all(~np.isfinite(x)):
         return 0.0, 0.0, 0.0, 0.0
@@ -13,7 +16,9 @@ def _safe_stats_1d(x):
 
 def _peak_frequency(x, fs=64):
     """
-    Frecvența cu putere maximă în spectru (ignoră DC).
+    Frecvența (Hz) cu putere maximă în spectru (ignorând componenta DC, 0 Hz).
+    Folosită ca “rezumat” al ritmului dominant în fereastră.
+
     Returnează 0.0 dacă nu se poate calcula robust.
     """
     x = np.asarray(x, dtype=float).reshape(-1)
@@ -62,7 +67,7 @@ def extract_bvp_features(bvp_segment, fs=64):
         return empty
 
     try:
-        # Curățare PPG (BVP) — păstrezi metoda ta
+        # Curățare PPG (BVP) cu NeuroKit2
         cleaned = nk.ppg_clean(bvp_segment, sampling_rate=fs, method="elgendi")
 
         mean_bvp, std_bvp, min_bvp, max_bvp = _safe_stats_1d(cleaned)

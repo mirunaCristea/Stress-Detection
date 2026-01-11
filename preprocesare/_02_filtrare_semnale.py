@@ -1,52 +1,56 @@
 from scipy.signal import butter, sosfiltfilt, sosfilt
 import numpy as np
 
+
 def butter_filter(data, fs, low=None, high=None, order=4, btype='low'):
     """
-    Aplică un filtru Butterworth pe datele de intrare.
+    Filtru Butterworth implementat cu SOS (stabil numeric).
+    Folosește filtrare zero-phase (sosfiltfilt) când semnalul e suficient de lung.
 
     Parametri:
-    - data: array-like, semnalul de intrare care trebuie filtrat.
-    - fs: float, frecvența de eșantionare a semnalului.
-    - low: float sau None, frecvența de tăiere inferioară pentru un filtru trece-sus. Dacă este None, nu se aplică filtrare trece-sus.
-    - high: float sau None, frecvența de tăiere superioară pentru un filtru trece-jos. Dacă este None, nu se aplică filtrare trece-jos.
-    - order: int, ordinul filtrului Butterworth.
+      - data: vector 1D
+      - fs: frecvența de eșantionare (Hz)
+      - low/high: frecvențe de tăiere (Hz)
+      - order: ordin filtru
+      - btype: 'low', 'high', 'band'
 
     Returnează:
-    - filtered_data: array-like, semnalul filtrat.
+      - semnal filtrat 1D
     """
+   
     x = np.asarray(data, dtype=float)
-    if x.ndim != 1:
-        x = x.reshape(-1)
 
-    # filtru Butter -> SOS
+    if x.ndim != 1:
+        x = x.reshape(-1) # asigur 1D
+
     if btype == 'band':
-        wn = [low/(0.5*fs), high/(0.5*fs)]
+        wn = [low / (0.5 * fs), high / (0.5 * fs)]
     elif btype == 'low':
-        wn = high/(0.5*fs)
+        wn = high / (0.5 * fs)
     elif btype == 'high':
-        wn = low/(0.5*fs)
+        wn = low / (0.5 * fs)
     else:
         raise ValueError("btype trebuie 'low'/'high'/'band'")
 
     sos = butter(order, wn, btype=btype, output='sos')
 
-    # curățare NaN/Inf
+
+    # Dacă avem NaN/Inf, le înlocuim ca să nu crape filtrarea
     if not np.isfinite(x).all():
         x = np.nan_to_num(x)
 
-    # calculează padlen „safe”
-    n_sections = sos.shape[0]               # nr. de biquads
-    default_padlen = 3 * (n_sections * 2)   # regula SciPy
-    # dacă semnalul e prea scurt, micșorăm padlen
-    if len(x) <= default_padlen:
-        if len(x) <= 1:
-            return x.copy()                 # nimic de filtrat
-        padlen = max(1, len(x) - 1)         # <= len(x)-1, obligatoriu
-    else:
-        padlen = default_padlen
+    # Pentru sosfiltfilt trebuie semnal suficient de lung (padlen)
+    n_sections = sos.shape[0]
+    default_padlen = 3 * (n_sections * 2)
 
-    # dacă după toate astea semnalul e tot mic, fallback pe sosfilt (cu lag)
+    if len(x) <= 1:
+        return x.copy()
+
+    padlen = default_padlen
+    if len(x) <= default_padlen:
+        padlen = max(1, len(x) - 1)
+
+# Dacă e prea scurt pentru filtru zero-phase, facem filtrare forward-only
     if len(x) <= padlen:
         return sosfilt(sos, x)
 
@@ -56,31 +60,36 @@ def butter_filter(data, fs, low=None, high=None, order=4, btype='low'):
 def filter_eda(eda, fs=4):
     return butter_filter(eda, fs, high=1, btype='low')
 
+
 def filter_bvp(bvp, fs=64):
+    """BVP/PPG: păstrăm banda utilă pentru puls -> band-pass."""
+
     return butter_filter(bvp, fs, low=0.5, high=6.0, btype='band')
 
+
 def filter_temp(temp, fs=4):
+    """TEMP: foarte lent -> low-pass foarte jos."""
+
     return butter_filter(temp, fs, high=0.1, btype='low')
+
 
 def filter_acc(acc, fs=32):
     """
-    ACC în WESAD este pe 3 axe (N,3).
-    Filtrăm fiecare axă separat și păstrăm forma (N,3).
+    ACC: (N,3) -> filtrăm fiecare axă separat cu low-pass, păstrăm forma (N,3).
+    Acceptă și (3,N) și îl transpune.
     """
     x = np.asarray(acc, dtype=float)
 
-    # dacă vine transpus (3,N), îl corectăm
+    # Dacă vine (3,N) din greșeală, îl aducem la (N,3)
     if x.ndim == 2 and x.shape[0] == 3 and x.shape[1] != 3:
         x = x.T
 
-    # dacă e deja 1D, filtrăm simplu
     if x.ndim == 1:
         return butter_filter(x, fs, high=5.0, btype='low')
 
     if x.ndim != 2 or x.shape[1] != 3:
-        raise ValueError(f"ACC must have shape (N,3) or (3,N). Got {x.shape}")
+        raise ValueError(f"ACC trebuie să fie (N,3). Got {x.shape}")
 
-    # filtrează pe coloane
     acc_f = np.zeros_like(x)
     for k in range(3):
         acc_f[:, k] = butter_filter(x[:, k], fs, high=5.0, btype='low')
