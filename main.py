@@ -39,7 +39,8 @@ from modele.plots import (
     plot_rf_feature_importance, plot_permutation_importance,plot_loss_and_accuracy,
 )
 
-# limitează BLAS / numpy / sklearn
+# ----------------- Limitare threads (CPU) -----------------
+
 os.environ["OMP_NUM_THREADS"] = "8"
 os.environ["MKL_NUM_THREADS"] = "8"
 os.environ["OPENBLAS_NUM_THREADS"] = "8"
@@ -50,13 +51,13 @@ os.environ["NUMEXPR_NUM_THREADS"] = "8"
 # CONFIGURARE GENERALĂ
 # =========================
 
-LOAD_FROM_PARQUET =False
-FEATURES_PATH1 = "./data/features/wesad_features_all.parquet"
-FEATURES_PATH2 = "./data/features/wesad_features_all.csv"
-FEATURES_PATH_WITHOUT_NOISE1 = "./data/features/wesad_features_no_noise.parquet"
-FEATURES_PATH_WITHOUT_NOISE2 = "./data/features/wesad_features_no_noise.csv"
-FEATURES_PATH_WITHOUT_ACC1 = "./data/features/wesad_features_no_acc.parquet"
-FEATURES_PATH_WITHOUT_ACC2 = "./data/features/wesad_features_no_acc.csv"
+LOAD_FROM_PARQUET =False # True -> nu mai reconstruiește features
+FEATURES_PATH_PARQUET = "./data/features/wesad_features_all.parquet"
+FEATURES_PATH_CSV = "./data/features/wesad_features_all.csv"
+FEATURES_PATH_WITHOUT_NOISE_PARQUET = "./data/features/wesad_features_no_noise.parquet"
+FEATURES_PATH_WITHOUT_NOISE_CSV = "./data/features/wesad_features_no_noise.csv"
+FEATURES_PATH_WITHOUT_ACC_PARQUET = "./data/features/wesad_features_no_acc.parquet"
+FEATURES_PATH_WITHOUT_ACC_CSV = "./data/features/wesad_features_no_acc.csv"
 WESAD_PATH = "data/WESAD"
 
 # Foldere output
@@ -72,9 +73,9 @@ RUN_RF = True
 RUN_LOGREG = True
 RUN_SVM = True
 RUN_CNN=True
-SAVE_MODEL=False
+SAVE_MODEL=False  # True -> face subject-holdout + salvează grafice
 
-# ✅ switch simplu (nu mai comentezi cod)
+# switch simplu (
 RUN_SWEEP = False   # True doar când vrei analiza pragurilor
 
 # Pragul final (ales după analiză)
@@ -98,13 +99,13 @@ def main():
     # =========================
     if LOAD_FROM_PARQUET:
         print("[INFO] Încarc datasetul din parquet...")
-        X, y, groups = load_feature_dataset(FEATURES_PATH1)
+        X, y, groups = load_feature_dataset(FEATURES_PATH_PARQUET)
     else:
         print("[INFO] Construiesc datasetul din WESAD...")
         X, y, groups = build_full_dataset(WESAD_PATH)
 
         print("[INFO] Salvez datasetul pentru rulări viitoare...")
-        save_feature_dataset(X, y, groups, FEATURES_PATH1,FEATURES_PATH2)
+        save_feature_dataset(X, y, groups, FEATURES_PATH_PARQUET,FEATURES_PATH_CSV)
 
     print("\n[INFO] Dataset încărcat:")
     print("  X shape:", X.shape)
@@ -159,7 +160,7 @@ def main():
             feat_cols = out["feature_cols"]
             X_te = out["X_test"]
 
-            # probas:
+            
 
             y_prob_rf = model_rf.predict_proba(X_te)[:, 1]
             plot_confusion_matrix(out["confusion_matrix"], title=f"RF CM (test={out['test_subject']})", normalize="true", savepath="modele/saved_graphs/rf_cm.png")
@@ -170,6 +171,7 @@ def main():
 
             plot_rf_feature_importance(model_rf, feature_names=feat_cols, top_k=20, title="RF feature importance", savepath="modele/saved_graphs/rf_feature_importance.png")
             plot_permutation_importance(model_rf, X_te, y_true_rf, feature_names=feat_cols, scoring="f1", top_k=20, title="RF permutation importance", savepath="modele/saved_graphs/rf_permutation_importance.png")
+           
             # final_rf, feature_cols = train_final_rf(X, y, use_scaler=True)
             # save_rf_model(final_rf, feature_cols=feature_cols, path="modele/saved_models/rf_stress_final.pkl")
     # =========================
@@ -208,6 +210,7 @@ def main():
 )
             # final_cnn = train_final_cnn(X_cnn, y_cnn, epochs=20, batch_size=64, lr=1e-3)
             # save_cnn_model(final_cnn, in_channels=X_cnn.shape[1], path="modele/saved_models/cnn_stress_final.pth")
+            
             y_true = out["y_true"]
             y_prob = out["y_prob"]
             cm = out["confusion_matrix"]  # dict cu "matrix"

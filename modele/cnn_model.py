@@ -4,6 +4,15 @@ import torch.nn as nn
 
 
 class CNN1D(nn.Module):
+    """
+    CNN 1D pentru input de tip (B, C, T):
+      - B: batch size
+      - C: număr canale (ex. 4: EDA, BVP, TEMP, ACC_MAG)
+      - T: număr eșantioane în fereastră (după resampling)
+
+    Output:
+      - logits (B,) pentru clasa pozitivă = 1 (stres)
+    """
     def __init__(self, in_channels: int, dropout: float = 0.2):
         super().__init__()
 

@@ -1,4 +1,4 @@
-# modele/model_io.py
+
 import os
 import time
 from typing import Any
@@ -28,7 +28,10 @@ def split_by_subject(
     test_subject: str | None = None,
 ):
     """
-    Returnează (test_subj, train_mask, test_mask)
+    Alege un subiect pentru test și întoarce măști booleene:
+      - test_subj
+      - train_mask
+      - test_mask
     """
     groups = np.asarray(groups)
     uniq = np.unique(groups)
@@ -173,6 +176,11 @@ def eval_cnn_simple(
  
 
 ):
+    """
+    Evaluează CNN:
+      - y_prob = sigmoid(logits)
+      - y_pred = (y_prob >= threshold)
+    """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

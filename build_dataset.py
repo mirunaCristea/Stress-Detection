@@ -109,7 +109,7 @@ def build_full_dataset(
   
 
 
-        # OPTIONAL (PT IMBUNATATIREA DATASET-ULUI):
+        # OPTIONAL :
         # 5.1) scos ferestrele noisy cy ajutorul acceleratoeo
 #########################################################       
         # keep_idx = []

@@ -18,6 +18,9 @@ torch.set_num_threads(12)
 torch.set_num_interop_threads(2)
 
 def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
+    """
+    Alege pragul (threshold) doar pe TRAIN, pentru a evita “umflarea” scorurilor pe TEST.
+    """
     best_th = 0.5
     best_val = -1.0
     for th in np.linspace(0.05, 0.95, 91):
@@ -32,6 +35,12 @@ def choose_threshold_from_train(y_true, y_prob, objective="f1_stress"):
 
 @torch.no_grad()
 def _predict_proba(model, loader, device):
+    """
+    Rulează modelul și întoarce:
+      - y_true (np.ndarray int)
+      - y_prob (np.ndarray float) = P(stress=1)
+    """
+
     model.eval()
     probs = []
     ys = []
@@ -56,6 +65,14 @@ def run_loso_cnn(
     objective: str = "f1_stress",
     device: str | None = None,
 ):
+    """
+    LOSO pentru CNN (PyTorch).
+    Pentru fiecare fold:
+      - Train CNN pe subiecții din train
+      - Calculează probabilități pe train și test
+      - Alege threshold pe train (opțional)
+      - Evaluează pe test
+    """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -88,7 +105,6 @@ def run_loso_cnn(
 
         # ---- TRAIN ----
         model.train()
-
 
         for ep in range(epochs):
             losses = []

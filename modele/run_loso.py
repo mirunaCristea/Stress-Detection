@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd   # ✅ LIPSEA — FOARTE IMPORTANT
+import pandas as pd   
 
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
@@ -13,13 +13,15 @@ from sklearn.ensemble import RandomForestClassifier
 from modele.metrics import compute_classification_metrics, compute_confusion_matrix
 import joblib
 import os
+
+
 def run_loso(
     X: pd.DataFrame,
     y: np.ndarray,
     groups: np.ndarray,
     model_name="logreg",
     threshold=0.35,
-    return_scores=False   # ✅ NOU
+    return_scores=False   
 ):
     """
     LOSO (Leave-One-Subject-Out)

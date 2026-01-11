@@ -15,6 +15,10 @@ FS_LABEL = 700
 
 
 def _acc_to_mag(acc_win: np.ndarray) -> np.ndarray:
+    """
+    Convertim ACC (N,3) -> magnitudine (N,)
+    mag = sqrt(x^2 + y^2 + z^2)
+    """
     acc = np.asarray(acc_win, dtype=float)
     if acc.ndim == 2 and acc.shape[1] == 3:
         mag = np.sqrt((acc * acc).sum(axis=1))
@@ -25,21 +29,23 @@ def _acc_to_mag(acc_win: np.ndarray) -> np.ndarray:
 
 def _resample_1d(x: np.ndarray, fs_in: int, fs_out: int) -> np.ndarray:
     """
-    Resampling simplu fără scipy.
-    - downsample dacă factor întreg (ex 64->32)
-    - altfel interpolare liniară
+    Resampling 1D simplu (fără scipy):
+      - dacă fs_in este multiplu de fs_out -> downsample cu pas fix
+      - altfel -> interpolare liniară
+
+    Scop: toate canalele ajung la aceeași frecvență (target_fs) pentru CNN.
     """
     x = np.asarray(x, dtype=float).reshape(-1)
 
     if fs_in == fs_out:
         return x
 
-    # downsample cu factor întreg
+    # Downsample când factorul e întreg (ex. 64 -> 32)
     if fs_in % fs_out == 0:
         factor = fs_in // fs_out
         return x[::factor]
 
-    # upsample / caz general: interpolare
+    # Caz general: interpolare liniară
     n_in = len(x)
     if n_in < 2:
         return np.zeros(int(np.round(n_in * fs_out / fs_in)), dtype=float)
@@ -52,7 +58,11 @@ def _resample_1d(x: np.ndarray, fs_in: int, fs_out: int) -> np.ndarray:
 
 def _zscore_per_channel(X_ct: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     """
-    X_ct shape: (C, T) -> normalizează pe fiecare canal
+    Normalizează fiecare canal separat (z-score) în interiorul ferestrei.
+    Input: X_ct shape (C, T)
+    Output: (C, T)
+
+    Avantaj: evită leakage între subiecți pentru normalizare.
     """
     mu = X_ct.mean(axis=1, keepdims=True)
     sd = X_ct.std(axis=1, keepdims=True) + eps
@@ -69,10 +79,18 @@ def build_cnn_dataset(
     channels=("EDA", "BVP", "TEMP", "ACC_MAG"),  # 4 canale by default
 ):
     """
-    Construiește dataset pentru CNN:
-      X: np.ndarray shape (N, C, T)
-      y: np.ndarray shape (N,)
-      groups: np.ndarray shape (N,) cu 'Sx'
+    Construiește dataset-ul pentru CNN:
+      - X: np.ndarray (N, C, T)
+      - y: np.ndarray (N,)
+      - groups: np.ndarray (N,) cu ID-ul subiectului ("S2", "S3", ...)
+
+    Pipeline per subiect:
+      1) load + cut
+      2) filtrare semnale
+      3) mapare etichete în {0,1,-1}
+      4) sliding windows + majoritate label
+      5) resampling la target_fs și stacking pe canale
+      6) z-score per canal (pe fereastră)
     """
 
     pkl_files = sorted(glob.glob(os.path.join(wesad_dir, "S*.pkl")))
@@ -88,17 +106,17 @@ def build_cnn_dataset(
         if subj in exclude_subjects:
             continue
 
-        # 1) load + cut
+        # 1) încărcare + tăiere început
         signals, labels = load_data_wesad(pkl_path)
         signals, labels = cut_30s(signals, labels, FS, fs_label=FS_LABEL, cut_s=30)
 
-        # 2) filtrare (rămâne ca la tine)
+        # 2) filtrare 
         signals["EDA"] = filter_eda(signals["EDA"], fs=FS["EDA"])
         signals["BVP"] = filter_bvp(signals["BVP"], fs=FS["BVP"])
         signals["TEMP"] = filter_temp(signals["TEMP"], fs=FS["TEMP"])
         signals["ACC"] = filter_acc(signals["ACC"], fs=FS["ACC"])
 
-        # 3) labels binare {0,1,-1}
+        # 3) etichete binare (0/1) + -1 pentru tranziții
         labels_bin = map_labels_to_binary_vector(labels)
 
         # 4) ferestre
@@ -115,7 +133,8 @@ def build_cnn_dataset(
         if len(y_win) == 0:
             print(f"[INFO] {subj}: 0 ferestre.")
             continue
-        added = 0
+     
+
         # 5) construim tensor (C,T) per fereastră
         for i in range(len(y_win)):
             # semnale pe fereastră
@@ -149,9 +168,9 @@ def build_cnn_dataset(
             X_all.append(X_ct.astype(np.float32))
             y_all.append(int(y_win[i]))
             groups_all.append(subj)
-            added+=1
+  
 
-        print(f"[OK] {subj}: y_win={len(y_win)} | kept={added} | dropped={len(y_win)-added}")
+        print(f"[OK] {subj}: y_win={len(y_win)} ")
 
     if not X_all:
         raise RuntimeError("Nu s-a generat niciun exemplu CNN.")
@@ -171,7 +190,9 @@ def build_cnn_dataset(
 
 class CNPTensorDataset(Dataset):
     """
-    Dataset PyTorch pentru X: (N,C,T), y:(N,)
+    Dataset PyTorch:
+      - X: (N,C,T) -> torch.float32
+      - y: (N,)    -> torch.float32 (necesar pentru BCEWithLogitsLoss)
     """
     def __init__(self, X: np.ndarray, y: np.ndarray):
         self.X = torch.from_numpy(X).float()
